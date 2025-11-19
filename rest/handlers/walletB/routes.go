@@ -7,7 +7,7 @@ import (
 )
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, manager *middleware.Manager) {
-	mux.Handle("GET /wallets/me",
+	mux.Handle("GET /wallets/my-balance",
 		manager.With(
 			http.HandlerFunc(h.GetBalance),
 			h.middlewares.AuthenticateJWT,
@@ -24,6 +24,13 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, manager *middleware.Manager
 	mux.Handle("POST /wallets/transfer",
 		manager.With(
 			http.HandlerFunc(h.Transfer),
+			h.middlewares.AuthenticateJWT,
+		),
+	)
+
+	mux.Handle("GET /wallets/transactions",
+		manager.With(
+			http.HandlerFunc(h.GetTransactions),
 			h.middlewares.AuthenticateJWT,
 		),
 	)

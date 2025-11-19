@@ -9,20 +9,18 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// Service interface
 type Service interface {
 	GetBalance(ctx context.Context, userID uint64) (*domain.Wallet, error)
 	TopUp(ctx context.Context, userID uint64, amount int64) error
 	Transfer(ctx context.Context, fromUserID, toUserID uint64, amount int64) error
+	GetTransactionHistory(ctx context.Context, userID uint64) ([]domain.Transaction, error)
 }
 
-// Concrete service
 type walletService struct {
 	walletRepo repo.WalletRepository
 	db         repo.DBExecutor
 }
 
-// Constructor
 func NewService(walletRepo repo.WalletRepository, db repo.DBExecutor) Service {
 	return &walletService{
 		walletRepo: walletRepo,
@@ -30,15 +28,13 @@ func NewService(walletRepo repo.WalletRepository, db repo.DBExecutor) Service {
 	}
 }
 
-// GetBalance returns user's wallet
 func (s *walletService) GetBalance(ctx context.Context, userID uint64) (*domain.Wallet, error) {
 	return s.walletRepo.GetByUserID(ctx, userID)
 }
 
-// TopUp adds funds to a wallet
 func (s *walletService) TopUp(ctx context.Context, userID uint64, amount int64) error {
 	if amount <= 0 {
-		return errors.New("invalid amount") // fallback if domain.ErrInvalidAmount missing
+		return errors.New("invalid amount")
 	}
 
 	return s.db.WithTx(ctx, func(tx *sqlx.Tx) error {
@@ -54,11 +50,21 @@ func (s *walletService) TopUp(ctx context.Context, userID uint64, amount int64) 
 			}
 		}
 
-		return s.walletRepo.UpdateBalance(ctx, tx, userID, amount)
+		if err := s.walletRepo.UpdateBalance(ctx, tx, userID, amount); err != nil {
+			return err
+		}
+		txn := &domain.Transaction{
+			FromUserID: nil,
+			ToUserID:   &userID,
+			Amount:     amount,
+			Type:       "topup",
+			Status:     "success",
+		}
+
+		return s.walletRepo.CreateTransaction(ctx, tx, txn)
 	})
 }
 
-// Transfer moves funds between wallets
 func (s *walletService) Transfer(ctx context.Context, fromUserID, toUserID uint64, amount int64) error {
 	if amount <= 0 {
 		return errors.New("invalid amount")
@@ -68,7 +74,6 @@ func (s *walletService) Transfer(ctx context.Context, fromUserID, toUserID uint6
 	}
 
 	return s.db.WithTx(ctx, func(tx *sqlx.Tx) error {
-		// Lock sender
 		sender, err := s.walletRepo.GetForUpdate(ctx, tx, fromUserID)
 		if err != nil {
 			return err
@@ -77,7 +82,6 @@ func (s *walletService) Transfer(ctx context.Context, fromUserID, toUserID uint6
 			return errors.New("insufficient balance")
 		}
 
-		// Lock receiver
 		receiver, _ := s.walletRepo.GetForUpdate(ctx, tx, toUserID)
 		if receiver == nil {
 			receiver = &domain.Wallet{UserID: toUserID, Balance: 0, Currency: "USD"}
@@ -89,6 +93,33 @@ func (s *walletService) Transfer(ctx context.Context, fromUserID, toUserID uint6
 		if err := s.walletRepo.UpdateBalance(ctx, tx, fromUserID, -amount); err != nil {
 			return err
 		}
-		return s.walletRepo.UpdateBalance(ctx, tx, toUserID, amount)
+
+		if err := s.walletRepo.UpdateBalance(ctx, tx, toUserID, amount); err != nil {
+			return err
+		}
+
+		txnOut := &domain.Transaction{
+			FromUserID: &fromUserID,
+			ToUserID:   &toUserID,
+			Amount:     amount,
+			Type:       "transfer_out",
+			Status:     "success",
+		}
+		if err := s.walletRepo.CreateTransaction(ctx, tx, txnOut); err != nil {
+			return err
+		}
+
+		txnIn := &domain.Transaction{
+			FromUserID: &fromUserID,
+			ToUserID:   &toUserID,
+			Amount:     amount,
+			Type:       "transfer_in",
+			Status:     "success",
+		}
+		return s.walletRepo.CreateTransaction(ctx, tx, txnIn)
 	})
+}
+
+func (s *walletService) GetTransactionHistory(ctx context.Context, userID uint64) ([]domain.Transaction, error) {
+	return s.walletRepo.GetTransactionsByUserID(ctx, userID)
 }
