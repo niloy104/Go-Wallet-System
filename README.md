@@ -1,4 +1,4 @@
-# WalletServer — Production-Grade Digital Wallet API in Pure Go
+# Go Wallet System — Production-Grade Digital Wallet API in Pure Go
 
 ![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?style=for-the-badge&logo=go)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql)
