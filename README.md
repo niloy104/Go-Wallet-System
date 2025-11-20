@@ -75,7 +75,7 @@ wallet/
 └── util/             # Response helpers, JWT, etc.
 ├── main.go           # main file
 
-### Run Locally
+Run Locally
 Bash: 
 git clone https://github.com/niloy104/VaultGo.git
 cd wallet
@@ -85,13 +85,13 @@ go run main.go
 Server: http://localhost:4000
 
 
-### Postman Collection
+Postman Collection
 Download Full Postman Collection
 View in Postman (link after upload)
 Future Roadmap
 
 
-### Future Roadmap
+Future Roadmap
 Admin dashboard
 Transaction search & filters
 Docker + PostgreSQL compose
